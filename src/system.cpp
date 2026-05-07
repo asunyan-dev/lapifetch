@@ -177,7 +177,7 @@ std::string exec(const char* cmd) {
 }
 
 std::string getGPU() {
-    std::string output = exec("lspci | grep -E 'VGA|3D|Display'");
+    std::string output = exec("lspci | grep -E 'VGA'");
 
     if(output.empty()) {
         return "Unknown GPU";
