@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <array>
 #include <cstdio>
+#include <vector>
 
 std::string getUsername() {
     const char* user = getenv("USER");
@@ -176,13 +177,61 @@ std::string exec(const char* cmd) {
 }
 
 std::string getGPU() {
-    std::string output = exec("lspci | grep VGA");
+    std::string output = exec("lspci | grep -E 'VGA|3D|Display'");
 
     if(output.empty()) {
         return "Unknown GPU";
     }
 
-    return output;
+    std::stringstream ss(output);
+
+    std::string line;
+
+    std::vector<std::string> gpus;
+
+    while(std::getline(ss, line)) {
+        size_t pos = line.find(": ");
+
+        if(pos != std::string::npos) {
+            line = line.substr(pos + 2);
+        }
+
+        size_t rev = line.find("(rev");
+
+        if(rev != std::string::npos) {
+            line = line.substr(0, rev);
+        }
+
+        while(!line.empty() && line.back() == ' ') {
+            line.pop_back();
+        }
+
+        if(line.find("Intel Corporation") == 0) {
+            line.replace(0, 18, "Intel ");
+        }
+
+        if(line.find("NVIDIA Corporation") == 0) {
+            line.replace(0, 20, "NVIDIA ");
+        }
+
+        if(line.find("Advanced Micro Devices") == 0) {
+            line.replace(0, 22, "AMD ");
+        }
+
+        gpus.push_back(line);
+    }
+
+    std::string result;
+
+    for(size_t i = 0; i < gpus.size(); i++) {
+        result += gpus[i];
+
+        if(i + 1 < gpus.size()) {
+            result += " + ";
+        }
+    }
+
+    return result;
 }
 
 std::string getUptime() {

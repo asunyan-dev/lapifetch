@@ -1,5 +1,7 @@
 #include <iostream>
 #include <string>
+#include <vector>
+#include <algorithm>
 
 #include "system.hpp"
 
@@ -71,35 +73,61 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    std::vector<std::string> bunny;
+
     if(showArt) {
-        std::cout << color;
-
-        std::cout << R"(
-                 \\
-            ,-~~~-\\_
-           (        .\
-         / @\___(__--'
-        )";
-
-        std::cout << reset << std::endl;
+        bunny = {
+            "        \\\\",
+            "   ,-~~~-\\\\_",
+            "  (        .\\",
+            " /@\\___(__--'"
+        };
     }
 
-    std::cout << " " + getUsername() << "@" << getHostname() << "\n";
-    std::cout << "------------" << + "\n\n";
+    std::vector<std::string> info = {
+        getUsername() + "@" + getHostname(),
+        color + "------------" + reset,
+        color + "OS:        " + reset + getOS(),
+        color + "Kernel:    " + reset + getKernel(),
+        color + "Uptime:    " + reset + getUptime(),
+        color + "CPU:       " + reset + getCPU(),
+        color + "GPU:       " + reset + getGPU(),
+        color + "DE/WM:     " + reset + getDE(),
+        color + "Terminal:  " + reset + getTerminal(),
+        color + "Shell:     " + reset + getShell(),
+        color + "RAM:       " + reset + getRAM(),
+        color + "Swap:      " + reset + getSwap(),
+        color + "Root:      " + reset + getRootStorage()
+    };
 
-    std::cout << color + "OS:        " + reset << getOS() << "\n";
-    std::cout << color + "Kernel:    " + reset << getKernel() << "\n";
-    std::cout << color + "Uptime:    " + reset << getUptime() << "\n";
-    std::cout << color + "CPU:       " + reset << getCPU() << "\n";
-    if(showGPU) {
-        std::cout << color + "GPU:       " + reset << getGPU() << "\n";
+    size_t maxLines = std::max(bunny.size(), info.size());
+
+    size_t bunnyWidth = 0;
+
+    for(const auto& line : bunny) {
+        bunnyWidth = std::max(bunnyWidth, line.length());
     }
-    std::cout << color + "DE/WM:     " + reset << getDE() << "\n";
-    std::cout << color + "Terminal:  " + reset << getTerminal() << "\n";
-    std::cout << color + "Shell:     " + reset << getShell() << "\n";
-    std::cout << color + "RAM:       " + reset << getRAM() << "\n";
-    std::cout << color + "Swap:      " + reset << getSwap() << "\n";
-    std::cout << color + "Root:      " + reset << getRootStorage() << "\n";
+
+    for(size_t i = 0; i < maxLines; i++) {
+        size_t currentWidth = 0;
+        if(i < bunny.size()) {
+            std::cout << color << bunny[i] << reset;
+            currentWidth = bunny[i].length();
+        }
+
+        if(i == 6 && !showGPU) {
+            continue;
+        }
+
+        std::cout << std::string(bunnyWidth - currentWidth + 5, ' ');
+
+        if(i < info.size()) {
+
+            std::cout << info[i];
+        }
+
+        std::cout << "\n";
+    }
 
     return 0;
 }
