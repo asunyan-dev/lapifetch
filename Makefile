@@ -3,7 +3,7 @@ CXXFLAGS = -Wall -Wextra -std=c++17
 
 TARGET = lapifetch
 
-SRC = main.cpp system.cpp
+SRC = src/main.cpp src/system.cpp
 
 all:
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET)
