@@ -2,6 +2,8 @@
 
 lapifetch is a simple bunny-themed Linux fetch utility written in C++.
 
+*Note: This is a WIP. There might be some bugs.*
+
 ## Dependencies
 
 All you need is a c++ compiler, like gcc.
