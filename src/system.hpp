@@ -15,3 +15,5 @@ std::string getUptime();
 std::string getShell();
 std::string getTerminal();
 std::string getDE();
+std::string getDisplayServer();
+std::string getPackages();

@@ -10,6 +10,20 @@ All you need is a c++ compiler, like gcc.
 
 ## Build/Install
 
+**Arch:**
+
+You can install the package from the AUR. Simply run:
+
+```bash
+$ yay -S lapifetch
+```
+
+**Debian**
+
+Check the latest release and download the `.deb` file and run it.
+
+**Install from Source**
+
 - Clone the repository and go to the directory:
 
 ```bash

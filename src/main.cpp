@@ -68,7 +68,12 @@ int main(int argc, char* argv[]) {
             std::cout << "-h,  --help           |  Display this help.\n";
             std::cout << "-na, --no-art         |  Display without the bunny art.\n";
             std::cout << "-sg, --show-gpu       |  Display the GPU information.\n";
+            std::cout << "-v,  --version        |  Display package version.\n";
 
+            return 0;
+        }
+        else if(arg == "--version" || arg == "-v") {
+            std::cout << "lapifetch v0.2.0";
             return 0;
         }
     }
@@ -90,9 +95,10 @@ int main(int argc, char* argv[]) {
         color + "OS:        " + reset + getOS(),
         color + "Kernel:    " + reset + getKernel(),
         color + "Uptime:    " + reset + getUptime(),
+        color + "Packages:  " + reset + getPackages(),
         color + "CPU:       " + reset + getCPU(),
         color + "GPU:       " + reset + getGPU(),
-        color + "DE/WM:     " + reset + getDE(),
+        color + "DE/WM:     " + reset + getDE() + " (" + getDisplayServer() + ")",
         color + "Terminal:  " + reset + getTerminal(),
         color + "Shell:     " + reset + getShell(),
         color + "RAM:       " + reset + getRAM(),
@@ -115,7 +121,7 @@ int main(int argc, char* argv[]) {
             currentWidth = bunny[i].length();
         }
 
-        if(i == 6 && !showGPU) {
+        if(i == 7 && !showGPU) {
             continue;
         }
 

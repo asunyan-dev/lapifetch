@@ -11,6 +11,7 @@
 #include <array>
 #include <cstdio>
 #include <vector>
+#include <algorithm>
 
 std::string getUsername() {
     const char* user = getenv("USER");
@@ -289,4 +290,76 @@ std::string getDE() {
     }
 
     return "Unknown";
+}
+
+std::string getDisplayServer() {
+    const char* wayland = getenv("WAYLAND_DISPLAY");
+
+    if(wayland) {
+        return "Wayland";
+    }
+
+    const char* x11 = getenv("DISPLAY");
+
+    if(x11) {
+        return "X11";
+    }
+
+    return "Unknown Display Server";
+}
+
+bool commandExists(const std::string& cmd) {
+    std::string check = "which " + cmd + " > /dev/null 2>&1";
+
+    return system(check.c_str()) == 0;
+}
+
+std::string getPackages() {
+    std::vector<std::string> packages;
+
+    if(commandExists("pacman")) {
+        std::string output = exec("pacman -Qq | wc -l");
+
+        output.erase(
+            std::remove(output.begin(), output.end(), '\n'), output.end()
+        );
+
+        packages.push_back(output + " (pacman)");
+    }
+
+    if(commandExists("dpkg")) {
+        std::string output = exec("dpkg-query -f '.' -W | wc -c");
+
+        output.erase(
+            std::remove(output.begin(), output.end(), '\n'), output.end()
+        );
+
+        packages.push_back(output + " (apt)");
+    }
+
+    if(commandExists("flatpak")) {
+        std::string output = exec("flatpak list | wc -l");
+
+        output.erase(
+            std::remove(output.begin(), output.end(), '\n'), output.end()
+        );
+
+        packages.push_back(output + " (flatpak)");
+    }
+
+    if(packages.empty()) {
+        return "Unknown";
+    }
+
+    std::string result;
+
+    for(size_t i = 0; i < packages.size(); i++) {
+        result += packages[i];
+
+        if(i + 1 < packages.size()) {
+            result += ", ";
+        }
+    }
+
+    return result;
 }
