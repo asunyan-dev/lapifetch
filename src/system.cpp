@@ -177,18 +177,18 @@ std::string exec(const char* cmd) {
     return result;
 }
 
-std::string getGPU() {
+std::vector<std::string> getGPU() {
+    std::vector<std::string> gpus;
     std::string output = exec("lspci | grep -E 'VGA'");
 
     if(output.empty()) {
-        return "Unknown GPU";
+        gpus.push_back("Unknown GPU");
+        return gpus;
     }
 
     std::stringstream ss(output);
 
     std::string line;
-
-    std::vector<std::string> gpus;
 
     while(std::getline(ss, line)) {
         size_t pos = line.find(": ");
@@ -207,33 +207,13 @@ std::string getGPU() {
             line.pop_back();
         }
 
-        if(line.find("Intel Corporation") == 0) {
-            line.replace(0, 18, "Intel ");
-        }
-
-        if(line.find("NVIDIA Corporation") == 0) {
-            line.replace(0, 20, "NVIDIA ");
-        }
-
-        if(line.find("Advanced Micro Devices") == 0) {
-            line.replace(0, 22, "AMD ");
-        }
-
         gpus.push_back(line);
     }
 
-    std::string result;
-
-    for(size_t i = 0; i < gpus.size(); i++) {
-        result += gpus[i];
-
-        if(i + 1 < gpus.size()) {
-            result += " + ";
-        }
-    }
-
-    return result;
+    return gpus;
 }
+
+
 
 std::string getUptime() {
     std::ifstream file("/proc/uptime");

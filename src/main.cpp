@@ -96,15 +96,23 @@ int main(int argc, char* argv[]) {
         color + "Kernel:    " + reset + getKernel(),
         color + "Uptime:    " + reset + getUptime(),
         color + "Packages:  " + reset + getPackages(),
-        color + "CPU:       " + reset + getCPU(),
-        color + "GPU:       " + reset + getGPU(),
-        color + "DE/WM:     " + reset + getDE() + " (" + getDisplayServer() + ")",
-        color + "Terminal:  " + reset + getTerminal(),
-        color + "Shell:     " + reset + getShell(),
-        color + "RAM:       " + reset + getRAM(),
-        color + "Swap:      " + reset + getSwap(),
-        color + "Root:      " + reset + getRootStorage()
+        color + "CPU:       " + reset + getCPU()
     };
+
+    if(showGPU) {
+        std::vector<std::string> gpus = getGPU();
+
+        for(size_t i = 0; i < gpus.size(); i++) {
+            info.push_back(color + "GPU:       " + reset + gpus[i]);
+        }
+    }
+
+    info.push_back(color + "DE/WM:     " + reset + getDE() + " (" + getDisplayServer() + ")");
+    info.push_back(color + "Terminal:  " + reset + getTerminal());
+    info.push_back(color + "Shell:     " + reset + getShell());
+    info.push_back(color + "RAM:       " + reset + getRAM());
+    info.push_back(color + "Swap:      " + reset + getSwap());
+    info.push_back(color + "Root:      " + reset + getRootStorage());
 
     size_t maxLines = std::max(bunny.size(), info.size());
 
@@ -119,10 +127,6 @@ int main(int argc, char* argv[]) {
         if(i < bunny.size()) {
             std::cout << color << bunny[i] << reset;
             currentWidth = bunny[i].length();
-        }
-
-        if(i == 7 && !showGPU) {
-            continue;
         }
 
         std::cout << std::string(bunnyWidth - currentWidth + 5, ' ');
