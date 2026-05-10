@@ -4,6 +4,7 @@ project(lapifetch)
 
 add_executable(lapifetch
     src/main.cpp
+    src/system.cpp
 )
 
 include(GNUInstallDirs)
