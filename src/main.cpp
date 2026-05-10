@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
             Usage: lapifetch --color <color>
             You can also use -c
             Example: lapifetch -c green
-            )";
+            )" << std::endl;
             return 0;
         }
         else if(arg == "--show-gpu" || arg == "-sg") {
@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         else if(arg == "--version" || arg == "-v") {
-            std::cout << "lapifetch v0.2.0";
+            std::cout << "lapifetch v0.3.0" << std::endl;
             return 0;
         }
     }

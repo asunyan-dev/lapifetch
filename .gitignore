@@ -1,2 +1,5 @@
 lapifetch
 *.o
+build/
+result/
+*.out

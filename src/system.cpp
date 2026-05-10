@@ -317,6 +317,24 @@ std::string getPackages() {
         packages.push_back(output + " (apt)");
     }
 
+    if(commandExists("nix")) {
+        std::string output = exec("nix profile list 2>/dev/null | wc -l");
+
+        output.erase(
+            std::remove(output.begin(), output.end(), '\n'),
+            output.end()
+        );
+
+        int count = std::stoi(output);
+        if(count > 0) {
+            count--;
+        }
+
+        packages.push_back(
+            std::to_string(count) + " (nix)"
+        );
+    }
+
     if(commandExists("flatpak")) {
         std::string output = exec("flatpak list | wc -l");
 

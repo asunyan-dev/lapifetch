@@ -8,9 +8,9 @@ lapifetch is a simple bunny-themed Linux fetch utility written in C++.
 
 All you need is a c++ compiler, like gcc.
 
-## Build/Install
+## Install
 
-**Arch:**
+### Arch
 
 You can install the package from the AUR. Simply run:
 
@@ -18,11 +18,25 @@ You can install the package from the AUR. Simply run:
 $ yay -S lapifetch
 ```
 
-**Debian**
+### Debian
 
 Check the latest release and download the `.deb` file and run it.
 
-**Install from Source**
+### Nix
+
+To run directly:
+
+```
+nix run github:asunyan-dev/lapifetch
+```
+
+Install permanently:
+
+```
+nix profile install github:asunyan-dev/lapifetch
+```
+
+## Install/Build from Source
 
 - Clone the repository and go to the directory:
 
