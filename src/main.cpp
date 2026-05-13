@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         else if(arg == "--version" || arg == "-v") {
-            std::cout << "lapifetch v0.3.0" << std::endl;
+            std::cout << "lapifetch v0.4.0" << std::endl;
             return 0;
         }
     }
