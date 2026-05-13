@@ -2,19 +2,32 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <map>
 
 #include "system.hpp"
 
 int main(int argc, char* argv[]) {
 
 
-    std::string color = "\033[35m";
+    std::string color = "\033[0;35m";
     std::string reset = "\033[0m";
     bool showArt = true;
     bool showGPU = false;
 
     for(int i = 1; i < argc; i++) {
         std::string arg = argv[i];
+
+        std::map<std::string, std::string> colors = {
+            { "black", "\033[1;30m" },
+            { "red", "\033[1;31m" },
+            { "green", "\033[1;32m" },
+            { "yellow", "\033[1;33m" },
+            { "blue", "\033[1;34m" },
+            { "purple", "\033[1;35m" },
+            { "cyan", "\033[1;36m" },
+            { "white", "\033[1;37m" },
+            { "pink", "\033[38;5;213m" }
+        };
 
         if(arg == "--no-art" || arg == "-na") {
             showArt = false;
@@ -23,38 +36,15 @@ int main(int argc, char* argv[]) {
             if(i + 1 < argc) {
                 std::string chosen = argv[++i];
 
-                if(chosen == "pink") {
-                    color = "\033[38;5;213m";
-                }
-                else if(chosen == "blue") {
-                    color = "\033[34m";
-                }
-                else if(chosen == "green") {
-                    color = "\033[32m";
-                }
-                else if(chosen == "purple") {
-                    color = "\033[35m";
-                }
-                else if(chosen == "red") {
-                    color = "\033[31m";
+                if(colors.count(chosen)) {
+                    color = colors[chosen];
                 } else {
-                    color = "\033[35m";
+                    color = colors["purple"];
                 }
             }
         }
         else if(arg == "--color-list" || arg == "-cl") {
-            std::cout << R"(
-            LapiFetch -- Color list:
-            - pink
-            - blue
-            - green
-            - purple
-            - red
-
-            Usage: lapifetch --color <color>
-            You can also use -c
-            Example: lapifetch -c green
-            )" << std::endl;
+            std::cout << "LapiFetch -- Color list:\n\nblack, red, green, yellow, blue, purple, cyan, white, pink\n\nNote: it is case sensitive. If you type an invalid color, it will just use purple as default\n\nUsage: lapifetch --color <color>\nYou can also use -c\nExample: lapifetch -c green" << std::endl;
             return 0;
         }
         else if(arg == "--show-gpu" || arg == "-sg") {
@@ -82,6 +72,7 @@ int main(int argc, char* argv[]) {
 
     if(showArt) {
         bunny = {
+            "",
             "        \\\\",
             "   ,-~~~-\\\\_",
             "  (        .\\",
@@ -90,14 +81,19 @@ int main(int argc, char* argv[]) {
     }
 
     std::vector<std::string> info = {
-        getUsername() + "@" + getHostname(),
-        color + "------------" + reset,
+        "",
+        color + getUsername() + reset + "@" + color +  getHostname() + reset,
+        "",
         color + "OS:        " + reset + getOS(),
         color + "Kernel:    " + reset + getKernel(),
         color + "Uptime:    " + reset + getUptime(),
         color + "Packages:  " + reset + getPackages(),
         color + "CPU:       " + reset + getCPU()
     };
+
+    info.at(2) = color + std::string(getHostname().size() + getUsername().size() + 1, '-') + reset;
+
+    
 
     if(showGPU) {
         std::vector<std::string> gpus = getGPU();

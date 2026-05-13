@@ -1,5 +1,7 @@
 #include "system.hpp"
 
+#include <iomanip>
+#include <ios>
 #include <unistd.h>
 #include <sys/utsname.h>
 #include <sys/statvfs.h>
@@ -12,6 +14,7 @@
 #include <cstdio>
 #include <vector>
 #include <algorithm>
+#include <iomanip>
 
 std::string getUsername() {
     const char* user = getenv("USER");
@@ -77,6 +80,16 @@ std::string getCPU() {
     return "Unknown CPU";
 }
 
+std::string formatBytes(unsigned long long bytes) {
+    double gib = bytes / 1024.0 / 1024.0 / 1024.0;
+
+    std::stringstream ss;
+
+    ss << std::fixed << std::setprecision(1) << gib << "GiB";
+
+    return ss.str();
+}
+
 std::string getRAM() {
     std::ifstream file("/proc/meminfo");
 
@@ -103,10 +116,11 @@ std::string getRAM() {
 
     long used = total - available;
 
-    total /= 1024;
-    used /= 1024;
+    int percent = static_cast<int>(
+        (used * 100.0) / total
+    );
 
-    return std::to_string(used) + " MiB / " + std::to_string(total) + " MiB";
+    return formatBytes(used * 1024ULL) + " / " + formatBytes(total * 1024ULL) + " (" + std::to_string(percent) + "%)";
 }
 
 std::string getSwap() {
@@ -135,10 +149,15 @@ std::string getSwap() {
 
     long used = total - free;
 
-    total /= 1024;
-    used /= 1024;
+    int percent = 0;
 
-    return std::to_string(used) + " MiB / " + std::to_string(total) + " MiB";
+    if(total > 0) {
+        percent = static_cast<int>(
+            (used * 100.0) / total
+        );
+    }
+
+    return formatBytes(used * 1024ULL) + " / " + formatBytes(total * 1024ULL) + " (" + std::to_string(percent) + "%)";
 }
 
 std::string getRootStorage() {
@@ -148,13 +167,17 @@ std::string getRootStorage() {
         return "Unknown";
     }
 
-    unsigned long total = (stat.f_blocks * stat.f_frsize) / (1024 * 1024 * 1024);
+    unsigned long long total = stat.f_blocks * stat.f_frsize;
 
-    unsigned long free = (stat.f_bfree * stat.f_frsize) / (1024 * 1024 * 1024);
+    unsigned long long free = stat.f_bfree * stat.f_frsize;
 
-    unsigned long used = total - free;
+    unsigned long long used = total - free;
 
-    return std::to_string(used) + " GiB / " + std::to_string(total) + " GiB";
+    int percent = static_cast<int>(
+        (used * 100.0) / total
+    );
+
+    return formatBytes(used) + " / " + formatBytes(total) + " (" + std::to_string(percent) + "%)";
 }
 
 std::string exec(const char* cmd) {
@@ -333,6 +356,28 @@ std::string getPackages() {
         packages.push_back(
             std::to_string(count) + " (nix)"
         );
+    }
+
+    if(commandExists("emerge")) {
+        std::string output = exec("find /var/db/pkg -mindepth 2 -maxdepth 2 -type d | wc -l");
+
+        output.erase(
+            std::remove(output.begin(), output.end(), '\n'),
+            output.end()
+        );
+
+        packages.push_back(output + " (emerge)");
+    }
+
+    if(commandExists("rpm")) {
+        std::string output = exec("rpm -qa | wc -l");
+
+        output.erase(
+            std::remove(output.begin(), output.end(), '\n'),
+            output.end()
+        );
+
+        packages.push_back(output + " (rpm)");
     }
 
     if(commandExists("flatpak")) {
