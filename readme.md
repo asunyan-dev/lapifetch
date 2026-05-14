@@ -36,6 +36,14 @@ Install permanently:
 nix profile install github:asunyan-dev/lapifetch
 ```
 
+### Install with bash
+
+Simply run the following command:
+
+```bash
+$ curl -fsSL https://raw.githubusercontent.com/asunyan-dev/lapifetch/main/install.sh | bash
+```
+
 ## Install/Build from Source
 
 - Clone the repository and go to the directory:

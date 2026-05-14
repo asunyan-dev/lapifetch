@@ -13,6 +13,8 @@ int main(int argc, char* argv[]) {
     std::string reset = "\033[0m";
     bool showArt = true;
     bool showGPU = false;
+    std::vector<std::string> info;
+    bool showColor = true;
 
     for(int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -44,7 +46,12 @@ int main(int argc, char* argv[]) {
             }
         }
         else if(arg == "--color-list" || arg == "-cl") {
-            std::cout << "LapiFetch -- Color list:\n\nblack, red, green, yellow, blue, purple, cyan, white, pink\n\nNote: it is case sensitive. If you type an invalid color, it will just use purple as default\n\nUsage: lapifetch --color <color>\nYou can also use -c\nExample: lapifetch -c green" << std::endl;
+            std::cout << "Lapifetch -- Color list:\n\n";
+            for(auto color : colors) {
+                std::cout << "- " << color.second << color.first << reset << "\n";
+            }
+            std::cout << "\n";
+            std::cout << "Note: it is case sensitive. If you type an invalid color, it will just use purple as default.\n\nUsage: lapifetch --color <color>\n\nYou can also use -c\nExample: lapifetch -c green\n";
             return 0;
         }
         else if(arg == "--show-gpu" || arg == "-sg") {
@@ -57,14 +64,18 @@ int main(int argc, char* argv[]) {
             std::cout << "-cl, --color-list     |  Display the list of valid colors.\n";
             std::cout << "-h,  --help           |  Display this help.\n";
             std::cout << "-na, --no-art         |  Display without the bunny art.\n";
+            std::cout << "-nc, --no-color       |  Display without any color.\n";
             std::cout << "-sg, --show-gpu       |  Display the GPU information.\n";
             std::cout << "-v,  --version        |  Display package version.\n";
 
             return 0;
         }
         else if(arg == "--version" || arg == "-v") {
-            std::cout << "lapifetch v0.4.0" << std::endl;
+            std::cout << "lapifetch v0.5.0" << std::endl;
             return 0;
+        }
+        else if(arg == "--no-color" || arg == "-nc") {
+            showColor = false;
         }
     }
 
@@ -80,35 +91,52 @@ int main(int argc, char* argv[]) {
         };
     }
 
-    std::vector<std::string> info = {
-        "",
-        color + getUsername() + reset + "@" + color +  getHostname() + reset,
-        "",
-        color + "OS:        " + reset + getOS(),
-        color + "Kernel:    " + reset + getKernel(),
-        color + "Uptime:    " + reset + getUptime(),
-        color + "Packages:  " + reset + getPackages(),
-        color + "CPU:       " + reset + getCPU()
-    };
+    if(showColor) {
+        info.push_back("");
+        info.push_back(color + getUsername() + "@" + getHostname() + reset);
+        info.push_back(std::string(getUsername().size() + getHostname().size() + 1, '-'));
+        info.push_back(color + "OS:        " + reset + getOS());
+        info.push_back(color + "Kernel:    " + reset + getKernel());
+        info.push_back(color + "Uptime:    " + reset + getUptime());
+        info.push_back(color + "Packages:  " + reset + getPackages());
+        info.push_back(color + "CPU:       " + reset + getCPU());
+        if(showGPU) {
+            std::vector<std::string> gpus = getGPU();
 
-    info.at(2) = color + std::string(getHostname().size() + getUsername().size() + 1, '-') + reset;
-
-    
-
-    if(showGPU) {
-        std::vector<std::string> gpus = getGPU();
-
-        for(size_t i = 0; i < gpus.size(); i++) {
-            info.push_back(color + "GPU:       " + reset + gpus[i]);
+            for (size_t i = 0; i < gpus.size(); i++) {
+                info.push_back(color + "GPU:       " + reset + gpus[i]);
+            }
         }
+        info.push_back(color + "DE/WM:     " + reset + getDE());
+        info.push_back(color + "Terminal:  " + reset + getTerminal());
+        info.push_back(color + "Shell:     " + reset + getShell());
+        info.push_back(color + "RAM:       " + reset + getRAM());
+        info.push_back(color + "Swap:      " + reset + getSwap());
+        info.push_back(color + "Root:      " + reset + getRootStorage());
     }
+    else if(!showColor) {
+        info.push_back("");
+        info.push_back(getUsername() + "@" + getHostname());
+        info.push_back(std::string(getUsername().size() + getHostname().size() + 1, '-'));
+        info.push_back("OS:        " + getOS());
+        info.push_back("Kernel:    " + getKernel());
+        info.push_back("Uptime:    " + getUptime());
+        info.push_back("Packages:  " + getPackages());
+        info.push_back("CPU:       " + getCPU());
+        if(showGPU) {
+            std::vector<std::string> gpus = getGPU();
 
-    info.push_back(color + "DE/WM:     " + reset + getDE() + " (" + getDisplayServer() + ")");
-    info.push_back(color + "Terminal:  " + reset + getTerminal());
-    info.push_back(color + "Shell:     " + reset + getShell());
-    info.push_back(color + "RAM:       " + reset + getRAM());
-    info.push_back(color + "Swap:      " + reset + getSwap());
-    info.push_back(color + "Root:      " + reset + getRootStorage());
+            for(size_t i = 0; i < gpus.size(); i++) {
+                info.push_back("GPU:       " + gpus[i]);
+            }
+        }
+        info.push_back("DE/WM:     " + getDE());
+        info.push_back("Terminal:  " + getTerminal());
+        info.push_back("Shell:     " + getShell());
+        info.push_back("RAM:       " + getRAM());
+        info.push_back("Swap:      " + getSwap());
+        info.push_back("Root:      " + getRootStorage());
+    }
 
     size_t maxLines = std::max(bunny.size(), info.size());
 
@@ -121,7 +149,12 @@ int main(int argc, char* argv[]) {
     for(size_t i = 0; i < maxLines; i++) {
         size_t currentWidth = 0;
         if(i < bunny.size()) {
-            std::cout << color << bunny[i] << reset;
+
+            if(!showColor) {
+                std::cout << bunny[i];
+            } else {
+                std::cout << color << bunny[i] << reset;
+            }
             currentWidth = bunny[i].length();
         }
 
