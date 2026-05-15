@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -12,9 +13,10 @@ int main(int argc, char* argv[]) {
     std::string color = "\033[0;35m";
     std::string reset = "\033[0m";
     bool showArt = true;
-    bool showGPU = false;
+    bool showGPU = true;
     std::vector<std::string> info;
     bool showColor = true;
+    bool compactMode = false;
 
     for(int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -54,30 +56,79 @@ int main(int argc, char* argv[]) {
             std::cout << "Note: it is case sensitive. If you type an invalid color, it will just use purple as default.\n\nUsage: lapifetch --color <color>\n\nYou can also use -c\nExample: lapifetch -c green\n";
             return 0;
         }
-        else if(arg == "--show-gpu" || arg == "-sg") {
-            showGPU = true;
+        else if(arg == "--no-gpu" || arg == "-ng") {
+            showGPU = false;
         }
         else if(arg == "--help" || arg == "-h") {
             std::cout << "LapiFetch - Simple System Information Fetcher\n\n";
             std::cout << "Arguments list:\n\n";
             std::cout << "-c,  --color <color>  |  Display with one of the valid colors.\n";
             std::cout << "-cl, --color-list     |  Display the list of valid colors.\n";
+            std::cout << "-cm, --compact-mode   |  Display info in a compact mode.\n";
             std::cout << "-h,  --help           |  Display this help.\n";
             std::cout << "-na, --no-art         |  Display without the bunny art.\n";
             std::cout << "-nc, --no-color       |  Display without any color.\n";
-            std::cout << "-sg, --show-gpu       |  Display the GPU information.\n";
+            std::cout << "-ng, --no-gpu         |  Hide the GPU information.\n";
             std::cout << "-v,  --version        |  Display package version.\n";
 
             return 0;
         }
         else if(arg == "--version" || arg == "-v") {
-            std::cout << "lapifetch v0.5.0" << std::endl;
+            std::cout << "lapifetch v0.6.0" << std::endl;
             return 0;
         }
         else if(arg == "--no-color" || arg == "-nc") {
             showColor = false;
         }
+        else if(arg == "--compact-mode" || arg == "-cm") {
+            compactMode = true;
+        }
     }
+
+    std::vector<std::string> infoStrings = {
+        getOS(),
+        getKernel(),
+        getUptime(),
+        getPackages(),
+        getCPU()
+    };
+
+    if(showGPU) {
+        std::vector<std::string> gpus = getGPU();
+
+        for(size_t i = 0; i < gpus.size(); i++) {
+            infoStrings.push_back(gpus[i]);
+        }
+    }
+
+    infoStrings.push_back(getDE());
+    infoStrings.push_back(getTerminal());
+    infoStrings.push_back(getShell());
+    infoStrings.push_back(getRAM());
+    infoStrings.push_back(getSwap());
+    infoStrings.push_back(getRootStorage());
+
+    std::vector<std::string> fullLabels = {
+        "OS:        ",
+        "Kernel:    ",
+        "Uptime:    ",
+        "Packages:  ",
+        "CPU:       "
+    };
+
+    if(showGPU) {
+        std::vector<std::string> gpus = getGPU();
+        for(size_t i = 0; i < gpus.size(); i++) {
+            fullLabels.push_back("GPU:       ");
+        }
+    }
+
+    fullLabels.push_back("DE/WM:     ");
+    fullLabels.push_back("Terminal:  ");
+    fullLabels.push_back("Shell:     ");
+    fullLabels.push_back("RAM:       ");
+    fullLabels.push_back("Swap:      ");
+    fullLabels.push_back("Root:      ");
 
     std::vector<std::string> bunny;
 
@@ -91,52 +142,34 @@ int main(int argc, char* argv[]) {
         };
     }
 
+    info.push_back("");
     if(showColor) {
-        info.push_back("");
-        info.push_back(color + getUsername() + "@" + getHostname() + reset);
-        info.push_back(std::string(getUsername().size() + getHostname().size() + 1, '-'));
-        info.push_back(color + "OS:        " + reset + getOS());
-        info.push_back(color + "Kernel:    " + reset + getKernel());
-        info.push_back(color + "Uptime:    " + reset + getUptime());
-        info.push_back(color + "Packages:  " + reset + getPackages());
-        info.push_back(color + "CPU:       " + reset + getCPU());
-        if(showGPU) {
-            std::vector<std::string> gpus = getGPU();
-
-            for (size_t i = 0; i < gpus.size(); i++) {
-                info.push_back(color + "GPU:       " + reset + gpus[i]);
-            }
-        }
-        info.push_back(color + "DE/WM:     " + reset + getDE());
-        info.push_back(color + "Terminal:  " + reset + getTerminal());
-        info.push_back(color + "Shell:     " + reset + getShell());
-        info.push_back(color + "RAM:       " + reset + getRAM());
-        info.push_back(color + "Swap:      " + reset + getSwap());
-        info.push_back(color + "Root:      " + reset + getRootStorage());
-    }
-    else if(!showColor) {
-        info.push_back("");
+        info.push_back(color + getUsername() + reset + "@" + color + getHostname() + reset);
+    } else {
         info.push_back(getUsername() + "@" + getHostname());
-        info.push_back(std::string(getUsername().size() + getHostname().size() + 1, '-'));
-        info.push_back("OS:        " + getOS());
-        info.push_back("Kernel:    " + getKernel());
-        info.push_back("Uptime:    " + getUptime());
-        info.push_back("Packages:  " + getPackages());
-        info.push_back("CPU:       " + getCPU());
-        if(showGPU) {
-            std::vector<std::string> gpus = getGPU();
+    }
 
-            for(size_t i = 0; i < gpus.size(); i++) {
-                info.push_back("GPU:       " + gpus[i]);
+    info.push_back(std::string(getHostname().size() + getUsername().size() + 1, '-'));
+
+    if(compactMode) {
+        for(size_t i = 0; i < infoStrings.size(); i++) {
+            if(showColor) {
+                info.push_back(color + "-" + reset + "  " + infoStrings[i]);
+            } else {
+                info.push_back("-  " + infoStrings[i]);
             }
         }
-        info.push_back("DE/WM:     " + getDE());
-        info.push_back("Terminal:  " + getTerminal());
-        info.push_back("Shell:     " + getShell());
-        info.push_back("RAM:       " + getRAM());
-        info.push_back("Swap:      " + getSwap());
-        info.push_back("Root:      " + getRootStorage());
+    } else {
+        for(size_t i = 0; i < infoStrings.size(); i++) {
+            if(showColor) {
+                info.push_back(color + fullLabels[i] + reset + infoStrings[i]);
+            } else {
+                info.push_back(fullLabels[i] + infoStrings[i]);
+            }
+        }
     }
+
+    info.push_back("");
 
     size_t maxLines = std::max(bunny.size(), info.size());
 
