@@ -75,6 +75,54 @@ $ make clean
 - You need `sudo` permission to install, cause it will be copied to `/usr/local/bin`.
 - `make clean` removes the building files that are unnecessary after the installation.
 
+
+## Configuration
+
+Run:
+
+```bash
+$ lapifetch --gen-config
+```
+
+This will generate two files, `color` and `order` in the following path:
+`$HOME/.config/lapifetch`
+
+When you open these files you will see the default configs:
+
+`color`:
+
+```
+purple
+```
+
+`order`:
+
+```
+os
+kernel
+uptime
+packages
+cpu
+gpu
+de
+terminal
+shell
+ram
+swap
+root
+```
+
+You can edit them.
+Check:
+
+```bash
+$ lapifetch --color-info # for color
+
+$ lapifetch --order-info # for order
+```
+
+For the order you can also remove fields if you wanna hide them.
+
 ## Usage
 
 For a basic usage, simply run:
@@ -83,7 +131,7 @@ For a basic usage, simply run:
 $ lapifetch
 ```
 
-If you want to see more information, for example to hide the bunny art, or to show GPU information, run:
+If you want to see more information, for example to hide the bunny art, run:
 
 ```bash
 $ lapifetch --help
