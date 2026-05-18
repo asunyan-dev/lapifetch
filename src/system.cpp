@@ -1,7 +1,12 @@
 #include "system.hpp"
 
+#include <cctype>
+#include <cstddef>
+#include <iostream>
 #include <iomanip>
 #include <ios>
+#include <string_view>
+#include <sys/types.h>
 #include <unistd.h>
 #include <sys/utsname.h>
 #include <sys/statvfs.h>
@@ -15,6 +20,8 @@
 #include <vector>
 #include <algorithm>
 #include <iomanip>
+#include <filesystem>
+#include <optional>
 
 std::string getUsername() {
     const char* user = getenv("USER");
@@ -84,6 +91,14 @@ std::string formatBytes(unsigned long long bytes) {
     double gib = bytes / 1024.0 / 1024.0 / 1024.0;
 
     std::stringstream ss;
+
+    if(gib < 1.0) {
+        gib = bytes / 1024.0 / 1024.0;
+
+        ss << std::fixed << std::setprecision(1) << gib << "MiB";
+
+        return ss.str();
+    }
 
     ss << std::fixed << std::setprecision(1) << gib << "GiB";
 
@@ -200,37 +215,203 @@ std::string exec(const char* cmd) {
     return result;
 }
 
-std::vector<std::string> getGPU() {
-    std::vector<std::string> gpus;
-    std::string output = exec("lspci | grep -E 'VGA'");
+std::string readFile(const std::filesystem::path& path) {
+    std::ifstream file(path);
 
-    if(output.empty()) {
-        gpus.push_back("Unknown GPU");
-        return gpus;
+    if(!file.is_open()) {
+        return "";
     }
 
-    std::stringstream ss(output);
+    std::string value;
+    std::getline(file, value);
+
+    return value;
+}
+
+std::filesystem::path getPCIIDsPath() {
+    const std::vector<std::filesystem::path> paths = {
+        "/usr/share/hwdata/pci.ids",
+        "/usr/share/misc/pci.ids"
+    };
+
+    for(const auto& path : paths) {
+        if(std::filesystem::exists(path)) {
+            return path;
+        }
+    }
+
+    return "";
+}
+
+struct PCIInfo {
+    std::string vendor;
+    std::string device;
+};
+
+std::optional<PCIInfo> lookupPCIName(
+    const std::string& vendorID,
+    const std::string& deviceID
+) {
+    auto pciPath = getPCIIDsPath();
+
+    if(pciPath.empty()) {
+        return std::nullopt;
+    }
+
+    std::ifstream file(pciPath);
+
+    if(!file.is_open()) {
+        return std::nullopt;
+    }
+
+    const std::string vendorHex = vendorID.substr(2);
+    const std::string deviceHex = deviceID.substr(2);
 
     std::string line;
 
-    while(std::getline(ss, line)) {
-        size_t pos = line.find(": ");
+    bool insideVendor = false;
+    std::string vendorName;
+
+    while(std::getline(file, line)) {
+        if(line.empty()) {
+            continue;
+        }
+
+        if(line.size() >= 4 && std::isxdigit(line[0]) && std::isxdigit(line[1]) && std::isxdigit(line[2]) && std::isxdigit(line[3])) {
+            std::string currentVendor = line.substr(0, 4);
+
+            insideVendor = (currentVendor == vendorHex);
+
+            if(insideVendor && line.size() > 6) {
+                vendorName = line.substr(6);
+            }
+
+            continue;
+        }
+
+        if(!insideVendor) {
+            continue;
+        }
+
+        if(line.size() >= 2 && std::isspace(line[0]) && std::isspace(line[1])) {
+            continue;
+        }
+
+        size_t start = line.find_first_not_of(" \t");
+
+        if(start == std::string::npos) {
+            continue;
+        }
+
+        if(line.size() < start + 4) {
+            continue;
+        }
+
+        std::string currentDevice = line.substr(start, 4);
+
+        if(currentDevice == deviceHex) {
+            std::string deviceName;
+
+            if(line.size() > start + 6) {
+                deviceName = line.substr(start + 6);
+            }
+
+            return PCIInfo {
+                vendorName,
+                deviceName
+            };
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::string cleanGPUName(
+    const std::string& vendor,
+    std::string device
+) {
+    size_t bracketStart = device.find('[');
+    size_t bracketEnd = device.find(']');
+
+    if(bracketStart != std::string::npos && bracketEnd != std::string::npos && bracketEnd > bracketStart) {
+        device = device.substr(bracketStart + 1, bracketEnd - bracketStart - 1);
+    }
+
+    const std::vector<std::string> removePrefixes = {
+        "Corporation",
+        "Inc.",
+        "Advanced Micro Devices"
+    };
+
+    std::string cleanVendor = vendor;
+
+    for(const auto& prefix : removePrefixes) {
+        size_t pos = cleanVendor.find(prefix);
 
         if(pos != std::string::npos) {
-            line = line.substr(pos + 2);
+            cleanVendor.erase(pos, prefix.length());
+        }
+    }
+
+    while(!cleanVendor.empty() && cleanVendor.back() == ' ') {
+        cleanVendor.pop_back();
+    }
+
+    if(cleanVendor.find("AMD") != std::string::npos || cleanVendor.find("Advanced Micro Devices") != std::string::npos) {
+    cleanVendor = "AMD";
+    } else if(cleanVendor.find("NVIDIA") != std::string::npos) {
+        cleanVendor = "Nvidia";
+    } else if(cleanVendor.find("Intel") != std::string::npos) {
+        cleanVendor = "Intel";
+    }
+
+    return cleanVendor + " " + device;
+}
+
+std::vector<std::string> getGPU() {
+    std::vector<std::string> gpus;
+    
+    const std::filesystem::path drmPath = "/sys/class/drm";
+
+    if(!std::filesystem::exists(drmPath)) {
+        return { "Unknown GPU" };
+    }
+
+    for(const auto& entry : std::filesystem::directory_iterator(drmPath)) {
+        std::string cardName = entry.path().filename().string();
+
+        if(cardName.find("card") != 0 || cardName.find('-') != std::string::npos) {
+            continue;
         }
 
-        size_t rev = line.find("(rev");
+        auto devicePath = entry.path() / "device";
 
-        if(rev != std::string::npos) {
-            line = line.substr(0, rev);
+        std::string vendor = readFile(devicePath / "vendor");
+
+        std::string device = readFile(devicePath / "device");
+
+        if(vendor.empty() || device.empty()) {
+            continue;
         }
 
-        while(!line.empty() && line.back() == ' ') {
-            line.pop_back();
-        }
+        auto gpuName = lookupPCIName(vendor, device);
 
-        gpus.push_back(line);
+        if(gpuName.has_value()) {
+            gpus.push_back(
+                cleanGPUName(
+                    gpuName->vendor,
+                    gpuName->device
+                )
+            );
+        } else {
+            gpus.push_back(
+                "Unknown GPU (" + device + ")"
+            );
+        }
+    }
+
+    if(gpus.empty()) {
+        return { "Unknown GPU" };
     }
 
     return gpus;
@@ -269,17 +450,130 @@ std::string getShell() {
     return shellPath;
 }
 
+pid_t getParentPID(pid_t pid) {
+    std::ifstream file(
+        "/proc/" + std::to_string(pid) + "/stat"
+    );
+
+    if(!file.is_open()) {
+        return -1;
+    }
+
+    std::string tmp;
+    pid_t ppid;
+
+    file >> tmp >> tmp >> tmp >> ppid;
+
+    return ppid;
+}
+
+std::string getProcessName(pid_t pid) {
+    std::ifstream file(
+        "/proc/" + std::to_string(pid) + "/comm"
+    );
+
+    if(!file.is_open()) {
+        return "";
+    }
+
+    std::string name;
+
+    std::getline(file, name);
+
+    return name;
+}
+
+std::string prettifyTerminal(
+    const std::string& terminal
+) {
+    if(terminal == "kitty") {
+        return "Kitty";
+    }
+
+    if(terminal == "konsole") {
+        return "Konsole";
+    }
+
+    if(terminal == "kgx") {
+        return "GNOME Console";
+    }
+
+    if(terminal == "gnome-terminal-") {
+        return "GNOME Terminal";
+    }
+
+    if(terminal == "alacritty") {
+        return "Alacritty";
+    }
+
+    if(terminal == "wezterm") {
+        return "WezTerm";
+    }
+
+    if(terminal == "foot") {
+        return "Foot";
+    }
+
+    if(terminal == "ghostty") {
+        return "Ghostty";
+    }
+
+    if(terminal == "st") {
+        return "st";
+    }
+
+    if(terminal == "urxvt") {
+        return "URxvt";
+    }
+
+    if(terminal == "tilix") {
+        return "Tilix";
+    }
+
+    return terminal;
+}
+
 std::string getTerminal() {
+    static const std::vector<std::string> terminals = {
+        "kitty",
+        "konsole",
+        "kgx",
+        "gnome-terminal-",
+        "alacritty",
+        "wezterm",
+        "foot",
+        "ghostty",
+        "xterm",
+        "st",
+        "urxvt",
+        "terminator",
+        "tilix"
+    };
+
+    pid_t pid = getpid();
+
+    while(pid > 1) {
+        std::string process = getProcessName(pid);
+
+        for(const auto& term : terminals) {
+            if(process == term) {
+                return prettifyTerminal(term);
+            }
+        }
+
+        pid = getParentPID(pid);
+    }
+
     const char* termProgram = getenv("TERM_PROGRAM");
 
     if(termProgram) {
-        return std::string(termProgram);
+        return termProgram;
     }
 
     const char* term = getenv("TERM");
 
     if(term) {
-        return std::string(term);
+        return term;
     }
 
     return "Unknown";
@@ -311,34 +605,96 @@ std::string getDisplayServer() {
     return "Unknown Display Server";
 }
 
-bool commandExists(const std::string& cmd) {
-    std::string check = "which " + cmd + " > /dev/null 2>&1";
+bool commandExists(std::string_view cmd) {
+    const char* pathEnv = getenv("PATH");
 
-    return system(check.c_str()) == 0;
+    if(!pathEnv) {
+        return false;
+    }
+
+    std::stringstream ss(pathEnv);
+    std::string path;
+
+    while(std::getline(ss, path, ':')) {
+        std::string full = path + "/" + std::string(cmd);
+
+        if(access(full.c_str(), X_OK) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+size_t countDirectories(const std::filesystem::path& path) {
+    if(!std::filesystem::exists(path)) {
+        return 0;
+    }
+
+    size_t count = 0;
+
+    for(const auto& entry : std::filesystem::directory_iterator(path)) {
+        if(entry.is_directory()) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+size_t countFilesWithExtension(
+    const std::filesystem::path& path,
+    const std::string& extension
+) {
+    if(!std::filesystem::exists(path)) {
+        return 0;
+    }
+
+    size_t count = 0;
+
+    for(const auto& entry : std::filesystem::directory_iterator(path)) {
+        if(entry.path().extension() == extension) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+size_t countLines(const std::string& text) {
+    if(text.empty()) {
+        return 0;
+    }
+
+    return std::count(
+        text.begin(),
+        text.end(),
+        '\n'
+    );
 }
 
 std::string getPackages() {
     std::vector<std::string> packages;
 
-    if(commandExists("pacman")) {
-        std::string output = exec("pacman -Qq | wc -l");
+    size_t pacmanCount = countDirectories("/var/lib/pacman/local");
 
-        output.erase(
-            std::remove(output.begin(), output.end(), '\n'), output.end()
+    if(pacmanCount > 0) {
+        packages.push_back(
+            std::to_string(pacmanCount) + " (pacman)"
         );
-
-        packages.push_back(output + " (pacman)");
     }
 
-    if(commandExists("dpkg")) {
-        std::string output = exec("dpkg-query -f '.' -W | wc -c");
+    size_t dpkgCount = countFilesWithExtension(
+        "/var/lib/dpkg/info",
+        ".list"
+    );
 
-        output.erase(
-            std::remove(output.begin(), output.end(), '\n'), output.end()
+    if(dpkgCount > 0) {
+        packages.push_back(
+            std::to_string(dpkgCount) + " (dpkg)"
         );
-
-        packages.push_back(output + " (apt)");
     }
+
 
     if(commandExists("nix")) {
         std::string output = exec("nix profile list 2>/dev/null | wc -l");
@@ -358,15 +714,24 @@ std::string getPackages() {
         );
     }
 
-    if(commandExists("emerge")) {
-        std::string output = exec("find /var/db/pkg -mindepth 2 -maxdepth 2 -type d | wc -l");
+    size_t emergeCount = 0;
 
-        output.erase(
-            std::remove(output.begin(), output.end(), '\n'),
-            output.end()
+    std::filesystem::path emergePath = "/var/db/pkg";
+
+    if(std::filesystem::exists(emergePath)) {
+        for(const auto& category : std::filesystem::directory_iterator(emergePath)) {
+            if(!category.is_directory()) {
+                continue;
+            }
+
+            emergeCount += countDirectories(category.path());
+        }
+    }
+
+    if(emergeCount > 0) {
+        packages.push_back(
+            std::to_string(emergeCount) + " (emerge)"
         );
-
-        packages.push_back(output + " (emerge)");
     }
 
     if(commandExists("rpm")) {
@@ -381,13 +746,15 @@ std::string getPackages() {
     }
 
     if(commandExists("flatpak")) {
-        std::string output = exec("flatpak list | wc -l");
+        std::string output = exec("flatpak list --columns=application");
 
-        output.erase(
-            std::remove(output.begin(), output.end(), '\n'), output.end()
-        );
+        size_t count = countLines(output);
 
-        packages.push_back(output + " (flatpak)");
+        if(count > 0) {
+            packages.push_back(
+                std::to_string(count) + " (flatpak)"
+            );
+        }
     }
 
     if(packages.empty()) {

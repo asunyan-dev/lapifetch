@@ -5,8 +5,9 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <map>
 #include <filesystem>
+#include <functional>
+#include <unordered_map>
 
 #include "system.hpp"
 
@@ -23,22 +24,23 @@ int main(int argc, char* argv[]) {
     bool essential = false;
     bool customOrder = false;
     std::vector<std::string> order;
-    std::map<std::string, std::string> infos = {
-        { "os", getOS() },
-        { "kernel", getKernel() },
-        { "uptime", getUptime() },
-        { "packages", getPackages() },
-        { "cpu", getCPU() },
-        { "gpu", "gpu" },
-        { "de", getDE() + " (" + getDisplayServer() + ")" },
-        { "terminal", getTerminal() },
-        { "shell", getShell() },
-        { "ram", getRAM() },
-        { "swap", getSwap() },
-        { "root", getRootStorage() }
+    std::unordered_map<std::string, std::function<std::string()>> infos = {
+        { "os", getOS },
+        { "kernel", getKernel },
+        { "uptime", getUptime },
+        { "packages", getPackages },
+        { "cpu", getCPU },
+        { "gpu", getCPU },
+        { "de", [] { return getDE() + " (" + getDisplayServer() + ")"; } },
+        { "terminal", getTerminal },
+        { "shell", getShell },
+        { "ram", getRAM },
+        { "swap", getSwap },
+        { "root", getRootStorage }
     };
+    
 
-    std::map<std::string, std::string> colors = {
+    std::unordered_map<std::string, std::string> colors = {
         { "black", "\033[1;30m" },
         { "red", "\033[1;31m" },
         { "green", "\033[1;32m" },
@@ -224,6 +226,11 @@ int main(int argc, char* argv[]) {
     }
 
     std::vector<std::string> infoStrings;
+    std::vector<std::string> cachedGPUs;
+
+    if(showGPU) {
+        cachedGPUs = getGPU();
+    }
 
     if(essential) {
         infoStrings.push_back(getOS());
@@ -236,18 +243,14 @@ int main(int argc, char* argv[]) {
     else {
         for(size_t i = 0; i < order.size(); i++) {
             if(order[i] == "gpu") {
-                std::vector<std::string> gpus = getGPU();
-
-                if(showGPU) {
-                    for(size_t j = 0; j < gpus.size(); j++) {
-                        infoStrings.push_back(gpus[j]);
-                    }
+                for(size_t j = 0; j < cachedGPUs.size(); j++) {
+                    infoStrings.push_back(cachedGPUs[j]);
                 }
 
                 continue;
             }
 
-            infoStrings.push_back(infos[order[i]]);
+            infoStrings.push_back(infos[order[i]]());
         }
     }
 
@@ -256,7 +259,7 @@ int main(int argc, char* argv[]) {
         compactMode = true;
     }
 
-    std::map<std::string, std::string> labels = {
+    std::unordered_map<std::string, std::string> labels = {
         { "os", "OS:        " },
         { "kernel", "Kernel:    " },
         { "uptime", "Uptime:    " },
@@ -275,12 +278,8 @@ int main(int argc, char* argv[]) {
 
     for(size_t i = 0; i < order.size(); i++) {
         if(order[i] == "gpu") {
-            if(showGPU) {
-                std::vector<std::string> gpus = getGPU();
-
-                for(size_t j = 0; j < gpus.size(); j++) {
-                    fullLabels.push_back("GPU:       ");
-                }
+            for(size_t j = 0; j < cachedGPUs.size(); j++) {
+                fullLabels.push_back("GPU:       ");
             }
             continue;
         }

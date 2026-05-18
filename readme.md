@@ -149,9 +149,9 @@ Now `lapifetch` but without the bunny art:
 
 ![Lapifetch without art](screenshots/lapifetch-noart.png)
 
-And with GPU information + blue color
+And without GPU information + blue color
 
-![Lapifetch with GPU](screenshots/lapifetch-withgpu.png)
+![Lapifetch without GPU](screenshots/lapifetch-nogpu.png)
 
 ## Uninstall
 
