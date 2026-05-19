@@ -23,6 +23,7 @@ int main(int argc, char* argv[]) {
     bool compactMode = false;
     bool essential = false;
     bool customOrder = false;
+    bool showIP = true;
     std::vector<std::string> order;
     std::unordered_map<std::string, std::function<std::string()>> infos = {
         { "os", getOS },
@@ -36,7 +37,10 @@ int main(int argc, char* argv[]) {
         { "shell", getShell },
         { "ram", getRAM },
         { "swap", getSwap },
-        { "root", getRootStorage }
+        { "root", getRootStorage },
+        { "[separator]", makeSeparator },
+        { "display", getDisplay },
+        { "ip", getLocalIP }
     };
     
 
@@ -73,18 +77,20 @@ int main(int argc, char* argv[]) {
             std::cout << "Arguments list:\n\n";
             std::cout << "-ci, --color-info     |  Display info for color config.\n";
             std::cout << "-cm, --compact-mode   |  Display info in a compact mode.\n";
+            std::cout << "-dc, --delete-config  |  Remove config directory and files.\n";
             std::cout << "-e,  --essential      |  Display a short version of lapifetch.\n";
             std::cout << "-gc, --gen-config     |  Check and generate config files if they don't exist.\n";
             std::cout << "-h,  --help           |  Display this help.\n";
             std::cout << "-na, --no-art         |  Display without the bunny art.\n";
             std::cout << "-nc, --no-color       |  Display without any color.\n";
+            std::cout << "-ni, --no-ip          |  Display without showing local IP.\n";
             std::cout << "-oi, --order-info     |  Display the info for order file.\n";
             std::cout << "-v,  --version        |  Display package version.\n";
 
             return 0;
         }
         else if(arg == "--version" || arg == "-v") {
-            std::cout << "lapifetch v1.0.0" << std::endl;
+            std::cout << "lapifetch v1.2.0" << std::endl;
             return 0;
         }
         else if(arg == "--no-gpu" || arg == "-ng") {
@@ -107,6 +113,7 @@ int main(int argc, char* argv[]) {
             for(auto info : infos) {
                 std::cout << "- " << info.first << "\n";
             }
+            std::cout << "[separator] lets you add a separator between two infos. It will show a line of ' - ' characters.\n ";
             return 0;
         }
         else if(arg == "--gen-config" || arg == "-gc") {
@@ -150,12 +157,14 @@ int main(int argc, char* argv[]) {
                         "packages\n"
                         "cpu\n"
                         "gpu\n"
+                        "display\n"
                         "de\n"
                         "terminal\n"
                         "shell\n"
                         "ram\n"
                         "swap\n"
-                        "root\n";
+                        "root\n"
+                        "ip\n";
                 }
 
                 order_file.close();
@@ -167,6 +176,23 @@ int main(int argc, char* argv[]) {
             }
 
             std::cout << "\n\nConfig files checked!\n";
+            return 0;
+        }
+        else if(arg == "--no-ip" || arg == "-ni") {
+            showIP = false;
+        }
+
+        else if(arg == "--delete-config" || arg == "-dc") {
+            std::filesystem::path configPath = std::filesystem::path(std::getenv("HOME")) / ".config/lapifetch";
+
+            if(std::filesystem::exists(configPath)) {
+                std::filesystem::remove_all(configPath);
+
+                std::cout << "Deleted " + configPath.string() + " successfully.\n";
+            } else {
+                std::cout << "Path to lapifetch config does not exists.\n";
+            }
+
             return 0;
         }
     }
@@ -216,12 +242,14 @@ int main(int argc, char* argv[]) {
             "packages",
             "cpu",
             "gpu",
+            "display",
             "de",
             "terminal",
             "shell",
             "ram",
             "swap",
-            "root"
+            "root",
+            "ip"
         };
     }
 
@@ -242,12 +270,25 @@ int main(int argc, char* argv[]) {
     }
     else {
         for(size_t i = 0; i < order.size(); i++) {
+            if(order[i] == "ip" && !showIP) {
+                continue;
+            }
+
             if(order[i] == "gpu") {
                 for(size_t j = 0; j < cachedGPUs.size(); j++) {
                     infoStrings.push_back(cachedGPUs[j]);
                 }
 
                 continue;
+            }
+
+            if(order[i] == "[separator]") {
+                if(compactMode) {
+                    continue;
+                } else {
+                    infoStrings.push_back("");
+                    continue;
+                }
             }
 
             infoStrings.push_back(infos[order[i]]());
@@ -266,24 +307,48 @@ int main(int argc, char* argv[]) {
         { "packages", "Packages:  " },
         { "cpu", "CPU:       " },
         { "gpu", "gpu" },
+        { "display", "Display:   " },
         { "de", "DE/WM:     "},
         { "terminal", "Terminal:  " },
         { "shell", "Shell:     " },
         { "ram", "RAM:       " },
         { "swap", "Swap:      " },
-        { "root", "Root:      " }
+        { "root", "Root:      " },
+        { "[separator]", makeSeparator() },
+        { "ip", "IP:        " }
     };
 
     std::vector<std::string> fullLabels;
 
     for(size_t i = 0; i < order.size(); i++) {
+        if(order[i] == "ip" && !showIP) {
+            continue;
+        }
+
         if(order[i] == "gpu") {
             for(size_t j = 0; j < cachedGPUs.size(); j++) {
-                fullLabels.push_back("GPU:       ");
+                if(showColor) {
+                    fullLabels.push_back(color + "GPU:       " + reset);
+                } else {
+                    fullLabels.push_back("GPU:       ");
+                }
             }
             continue;
         }
-        fullLabels.push_back(labels[order[i]]);
+        if(order[i] == "[separator]") {
+            if(compactMode) {
+                continue;
+            } else {
+                fullLabels.push_back(makeSeparator());
+                continue;
+            }
+        }
+
+        if(showColor) {
+            fullLabels.push_back(color + labels[order[i]] + reset);
+        } else {
+            fullLabels.push_back(labels[order[i]]);
+        }
     }
 
     std::vector<std::string> bunny;
@@ -317,11 +382,7 @@ int main(int argc, char* argv[]) {
         }
     } else {
         for(size_t i = 0; i < infoStrings.size(); i++) {
-            if(showColor) {
-                info.push_back(color + fullLabels[i] + reset + infoStrings[i]);
-            } else {
-                info.push_back(fullLabels[i] + infoStrings[i]);
-            }
+            info.push_back(fullLabels[i] + infoStrings[i]);
         }
     }
 

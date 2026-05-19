@@ -1,5 +1,6 @@
 #include "system.hpp"
 
+#include <X11/extensions/randr.h>
 #include <cctype>
 #include <cstddef>
 #include <iostream>
@@ -10,6 +11,16 @@
 #include <unistd.h>
 #include <sys/utsname.h>
 #include <sys/statvfs.h>
+#include <X11/Xlib.h>
+#include <X11/extensions/Xrandr.h>
+#include <linux/fb.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 #include <fstream>
 #include <sstream>
@@ -22,6 +33,7 @@
 #include <iomanip>
 #include <filesystem>
 #include <optional>
+#include <cstring>
 
 std::string getUsername() {
     const char* user = getenv("USER");
@@ -92,15 +104,21 @@ std::string formatBytes(unsigned long long bytes) {
 
     std::stringstream ss;
 
+    std::string unit = "GiB";
+
     if(gib < 1.0) {
-        gib = bytes / 1024.0 / 1024.0;
+        gib *= 1024.0;
 
-        ss << std::fixed << std::setprecision(1) << gib << "MiB";
+        unit = "MiB";
 
-        return ss.str();
+        if(gib < 1.0) {
+            gib *= 1024;
+
+            unit = "KiB";
+        }
     }
 
-    ss << std::fixed << std::setprecision(1) << gib << "GiB";
+    ss << std::fixed << std::setprecision(1) << gib << unit;
 
     return ss.str();
 }
@@ -772,4 +790,331 @@ std::string getPackages() {
     }
 
     return result;
+}
+
+std::string makeSeparator() {
+    return std::string(getUsername().size() + getHostname().size() + 1, '-');
+}
+
+static std::string trim(std::string s) {
+    while(!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' ')) {
+        s.pop_back();
+    }
+
+    return s;
+}
+
+static std::string formatMode(const std::string& mode) {
+    size_t x = mode.find('x');
+
+    if(x == std::string::npos) {
+        return mode;
+    }
+
+    return mode.substr(0, x) + "x" + mode.substr(x + 1);
+}
+
+static std::string joinModes(
+    const std::vector<std::string>& modes
+) {
+    if(modes.empty()) {
+        return "Unknown";
+    }
+
+    std::stringstream ss;
+
+    for (size_t i = 0; i < modes.size(); ++i) {
+        ss << formatMode(modes[i]);
+
+        if(i + 1 < modes.size()) {
+            ss << " + ";
+        }
+    }
+
+    return ss.str();
+}
+
+static std::vector<std::string> drmDisplays() {
+    std::vector<std::string> modes;
+
+    const std::filesystem::path drm("/sys/class/drm");
+
+    if(std::filesystem::exists(drm)) {
+        return modes;
+    }
+
+    for(const auto& entry : std::filesystem::directory_iterator(drm)) {
+        const std::string name = entry.path().filename().string();
+
+        if(name.find('-') == std::string::npos) {
+            continue;
+        }
+
+        if(name.find("Virtual") != std::string::npos || name.find("None") != std::string::npos) {
+            continue;
+        }
+
+        std::ifstream statusFile(entry.path() / "status");
+
+        if(!statusFile.good()) {
+            continue;
+        }
+
+        std::string status;
+        std::getline(statusFile, status);
+
+        if(status != "connected") {
+            continue;
+        }
+
+        std::ifstream modesFile(entry.path() / "modes");
+
+        if(!modesFile.good()) {
+            continue;
+        }
+
+        std::string mode;
+        std::getline(modesFile, mode);
+
+        mode = trim(mode);
+
+        if(!mode.empty()) {
+            modes.push_back(mode);
+        }
+    }
+
+    return modes;
+}
+
+static std::vector<std::string> xrandrDisplays() {
+    std::vector<std::string> modes;
+
+    Display* display = XOpenDisplay(nullptr);
+
+    if(!display) {
+        return modes;
+    }
+
+    Window root = DefaultRootWindow(display);
+
+    XRRScreenResources* screen = XRRGetScreenResourcesCurrent(display, root);
+
+    if(!screen) {
+        XCloseDisplay(display);
+        return modes;
+    }
+
+    for(int i = 0; i < screen->noutput; ++i) {
+        XRROutputInfo* output = XRRGetOutputInfo(display, screen, screen->outputs[i]);
+
+        if(!output) {
+            continue;
+        }
+
+        if(output->connection != RR_Connected || output->crtc == 0) {
+            XRRFreeOutputInfo(output);
+            continue;
+        }
+
+        XRRCrtcInfo* crtc = XRRGetCrtcInfo(
+            display,
+            screen,
+            output->crtc
+        );
+
+        if(!crtc) {
+            XRRFreeOutputInfo(output);
+            continue;
+        }
+
+        std::string mode = std::to_string(crtc->width) + "x" + std::to_string(crtc->height);
+
+        modes.push_back(mode);
+
+        XRRFreeCrtcInfo(crtc);
+        XRRFreeOutputInfo(output);
+    }
+
+    XRRFreeScreenResources(screen);
+    XCloseDisplay(display);
+
+    return modes;
+}
+
+static std::vector<std::string> framebufferDisplay() {
+    std::vector<std::string> modes;
+
+    int fb = open("/dev/fb0", O_RDONLY);
+
+    if(fb < 0) {
+        return modes;
+    }
+
+    fb_var_screeninfo info{};
+
+    if(ioctl(fb, FBIOGET_VSCREENINFO, &info) == 0) {
+        std::string mode = std::to_string(info.xres) + "x" + std::to_string(info.yres);
+
+        modes.push_back(mode);
+    }
+
+    close(fb);
+
+    return modes;
+}
+
+std::string getDisplay() {
+    auto drm = drmDisplays();
+
+    if(!drm.empty()) {
+        return joinModes(drm);
+    }
+
+    auto x11 = xrandrDisplays();
+
+    if(!x11.empty()) {
+        return joinModes(x11);
+    }
+
+    auto fb = framebufferDisplay();
+
+    if(!fb.empty()) {
+        return joinModes(fb);
+    }
+
+    return "Unknown";
+}
+
+static std::string routeIP() {
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if(sock < 0) {
+        return "";
+    }
+
+    sockaddr_in server{};
+
+    server.sin_family = AF_INET;
+    server.sin_port = htons(80);
+
+    inet_pton(
+        AF_INET,
+        "8.8.8.8",
+        &server.sin_addr
+    );
+
+    if(connect(
+        sock,
+        (sockaddr*)&server,
+        sizeof(server)
+    ) < 0) {
+        close(sock);
+        return "";
+    }
+
+    sockaddr_in local{};
+    socklen_t len = sizeof(local);
+
+    if(getsockname(
+        sock,
+        (sockaddr*)&local,
+        &len
+    ) < 0) {
+        close(sock);
+        return "";
+    }
+
+    char buffer[INET_ADDRSTRLEN];
+
+    const char* result = inet_ntop(
+        AF_INET,
+        &local.sin_addr,
+        buffer,
+        sizeof(buffer)
+    );
+
+    close(sock);
+
+    if(!result) {
+        return "";
+    }
+
+    return std::string(buffer);
+}
+
+static bool invalidInterface(const std::string& name) {
+    return 
+        name == "lo" ||
+
+        name.find("docker") == 0 ||
+        name.find("veth") == 0 ||
+        name.find("virbr") == 0 ||
+        name.find("br-") == 0 ||
+        name.find("tun") == 0;
+}
+
+static std::string interfaceIP() {
+    ifaddrs* ifaddr = nullptr;
+
+    if(getifaddrs(&ifaddr) == -1) {
+        return "";
+    }
+
+    std::string ip;
+
+    for(ifaddrs* ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if(ifa->ifa_addr) {
+            continue;
+        }
+
+        if(ifa->ifa_addr->sa_family != AF_INET) {
+            continue;
+        }
+
+        if(!(ifa->ifa_flags & IFF_UP)) {
+            continue;
+        }
+
+        std::string name = ifa->ifa_name;
+
+        if(invalidInterface(name)) {
+            continue;
+        }
+
+        char host[INET_ADDRSTRLEN];
+
+        sockaddr_in* addr = (sockaddr_in*)ifa->ifa_addr;
+
+        if(!inet_ntop(
+            AF_INET,
+            &addr->sin_addr,
+            host,
+            sizeof(host)
+        )) {
+            continue;
+        }
+
+        ip = host;
+        break;
+    } 
+
+    freeifaddrs(ifaddr);
+
+    return ip;
+}
+
+std::string getLocalIP() {
+    std::string ip = routeIP();
+
+    if(!ip.empty()) {
+        return ip;
+    }
+
+    ip = interfaceIP();
+
+    if(!ip.empty()) {
+        return ip;
+    }
+
+    return "Unknown";
 }

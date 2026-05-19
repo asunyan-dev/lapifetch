@@ -18,3 +18,6 @@ std::string getTerminal();
 std::string getDE();
 std::string getDisplayServer();
 std::string getPackages();
+std::string makeSeparator();
+std::string getDisplay();
+std::string getLocalIP();

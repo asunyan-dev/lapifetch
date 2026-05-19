@@ -155,7 +155,15 @@ And without GPU information + blue color
 
 ## Uninstall
 
-To uninstall the command, go to the repo folder you've cloned and run:
+Before uninstalling, if you had config files, make sure you run:
+
+```bash
+$ lapifetch --delete-config
+```
+
+This will remove the folder where the config files were located.
+
+Then, to uninstall the command, go to the repo folder you've cloned and run:
 
 ```bash
 $ sudo make uninstall
