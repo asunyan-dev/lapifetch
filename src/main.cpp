@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         else if(arg == "--version" || arg == "-v") {
-            std::cout << "lapifetch v1.2.0" << std::endl;
+            std::cout << "lapifetch v1.2.1" << std::endl;
             return 0;
         }
         else if(arg == "--no-gpu" || arg == "-ng") {
