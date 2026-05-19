@@ -796,6 +796,316 @@ std::string makeSeparator() {
     return std::string(getUsername().size() + getHostname().size() + 1, '-');
 }
 
+static std::string command(const char* cmd) {
+    std::array<char, 256> buffer{};
+
+    std::string result;
+
+    FILE* pipe = popen(cmd, "r");
+
+    if(!pipe) {
+        return "";
+    }
+
+    while(fgets(buffer.data(), buffer.size(), pipe)) {
+        result += buffer.data();
+    }
+
+    pclose(pipe);
+
+    return result;
+}
+
+static bool isWayland() {
+    return std::getenv("WAYLAND_DISPLAY") != nullptr;
+}
+
+static std::vector<std::string> hyprlandDisplays() {
+    std::vector<std::string> modes;
+
+    std::string output = command("hyprctl monitors -j 2>/dev/null");
+
+    if(output.empty()) {
+        return modes;
+    }
+
+    size_t pos = 0;
+
+    while((pos = output.find("\"width\":", pos)) != std::string::npos) {
+        pos += 8;
+
+        size_t end = output.find(',', pos);
+
+        std::string width = output.substr(pos, end - pos);
+
+        size_t hpos = output.find("\"height\":", end);
+
+        if(hpos == std::string::npos) {
+            break;
+        }
+
+        hpos += 9;
+
+        size_t hend = output.find(',', hpos);
+
+        std::string height = output.substr(hpos, hend - hpos);
+
+        modes.push_back(width + "x" + height);
+
+        pos = hend;
+    }
+
+    return modes;
+}
+
+
+static std::vector<std::string> swayDisplays() {
+    std::vector<std::string> modes;
+
+    std::string output = command("swaymsg -t get_outputs 2>/dev/null");
+
+    if(output.empty()) {
+        return modes;
+    }
+
+    size_t pos = 0;
+
+    while((pos = output.find("\"current_mode\"", pos)) != std::string::npos) {
+        size_t wpos = output.find("\"width\":", pos);
+
+        size_t hpos = output.find("\"height\":", pos);
+
+        if(wpos == std::string::npos || hpos == std::string::npos) {
+            break;
+        }
+
+        wpos += 8;
+        hpos += 9;
+
+        size_t wend = output.find(',', wpos);
+
+        size_t hend = output.find(',', hpos);
+
+        std::string width = output.substr(wpos, wend - wpos);
+
+        std::string height = output.substr(hpos, hend - hpos);
+
+        modes.push_back(width + "x" + height);
+
+        pos = hend;
+    }
+
+    return modes;
+}
+
+static std::vector<std::string> niriDisplays() {
+    std::vector<std::string> modes;
+
+    std::string output = command("niri msg outputs 2>/dev/null");
+
+    if(output.empty()) {
+        return modes;
+    }
+
+    size_t pos = 0;
+
+    while((pos = output.find("Current mode:", pos)) != std::string::npos) {
+        pos += 13;
+
+        size_t end = output.find('@', pos);
+
+        if(end == std::string::npos) {
+            break;
+        }
+
+        std::string mode = output.substr(pos, end - pos);
+
+        while(!mode.empty() && mode.front() == ' ') {
+            mode.erase(mode.begin());
+        }
+
+        while(!mode.empty() && mode.back() == ' ') {
+            mode.pop_back();
+        }
+
+        size_t x = mode.find('x');
+
+        if(x != std::string::npos) {
+            std::string width = mode.substr(0, x);
+
+            std::string height = mode.substr(x + 1);
+
+            mode = width + "x" + height;
+        }
+
+        modes.push_back(mode);
+    }
+
+    return modes;
+}
+
+static std::vector<std::string> kdeDisplays() {
+    std::vector<std::string> modes;
+
+    std::string output = command("kscreen-doctor -j 2>/dev/null");
+
+    if(output.empty()) {
+        return modes;
+    }
+
+    size_t pos = 0;
+
+    while((pos = output.find("\"currentModeId\"", pos)) != std::string::npos) {
+        size_t wpos = output.find("\"size\":", pos);
+
+        if(wpos == std::string::npos) {
+            break;
+        }
+
+        size_t widthPos = output.find("\"width\":", wpos);
+
+        size_t heightPos = output.find("\"height\":", wpos);
+
+        if(widthPos == std::string::npos || heightPos == std::string::npos) {
+            break;
+        }
+
+        widthPos += 8;
+        heightPos += 9;
+
+        size_t widthEnd = output.find(',', widthPos);
+
+        size_t heightEnd = output.find(',', heightPos);
+
+        std::string width = output.substr(widthPos, widthEnd - widthPos);
+
+        std::string height = output.substr(heightPos, heightEnd - heightPos);
+
+        modes.push_back(width + "x" + height);
+
+        pos = heightEnd;
+    }
+
+    return modes;
+}
+
+static std::vector<std::string> gnomeDisplays() {
+    std::vector<std::string> modes;
+
+    std::string output = command(
+        "gdbus call "
+        "--session "
+        "--dest org.gnome.Mutter.DisplayConfig "
+        "--object-path /org/gnome/Mutter/DisplayConfig "
+        "--method org.gnome.Mutter.DisplayConfig.GetCurrentState "
+        "2>/dev/null"
+    );
+
+    if(output.empty()) {
+        return modes;
+    }
+
+    size_t pos = 0;
+
+    while((pos = output.find("width", pos)) != std::string::npos) {
+        size_t numStart = output.find_first_of("0123456789", pos);
+
+        if(numStart == std::string::npos) {
+            break;
+        }
+
+        size_t numEnd = output.find_first_not_of("0123456789", numStart);
+
+        std::string width = output.substr(
+            numStart,
+            numEnd - numStart
+        );
+
+        size_t hpos = output.find("height", numEnd);
+
+        if(hpos == std::string::npos) {
+            break;
+        }
+
+        size_t hStart = output.find_first_of("0123456789", hpos);
+
+        if(hStart == std::string::npos) {
+            break;
+        }
+
+        size_t hEnd = output.find_first_not_of("0123456789", hStart);
+
+        std::string height = output.substr(
+            hStart,
+            hEnd - hStart
+        );
+
+        std::string mode = width + "x" + height;
+
+        if(std::find(
+            modes.begin(),
+            modes.end(),
+            mode
+        ) == modes.end()) {
+            modes.push_back(mode);
+        }
+
+        pos = hEnd;
+    }
+
+    return modes;
+}
+
+static std::vector<std::string> waylandDisplays() {
+    if(std::getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
+        auto hypr = hyprlandDisplays();
+
+        if(!hypr.empty()) {
+            return hypr;
+        }
+    }
+
+    if(std::getenv("SWAYSOCK")) {
+        auto sway = swayDisplays();
+
+        if(!sway.empty()) {
+            return sway;
+        }
+    }
+
+    if(std::getenv("NIRI_SOCKET")) {
+        auto niri = niriDisplays();
+
+        if(!niri.empty()) {
+            return niri;
+        }
+    }
+
+    const char* desktop = std::getenv("XDG_CURRENT_DESKTOP");
+
+    if(desktop) {
+        std::string de = desktop;
+
+        if(de.find("KDE") != std::string::npos) {
+            auto kde = kdeDisplays();
+
+            if(!kde.empty()) {
+                return kde;
+            }
+        }
+
+        if(de.find("GNOME") != std::string::npos) {
+            auto gnome = gnomeDisplays();
+
+            if(!gnome.empty()) {
+                return gnome;
+            }
+        }
+    }
+
+    return {};
+}
+
 static std::string trim(std::string s) {
     while(!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' ')) {
         s.pop_back();
@@ -964,16 +1274,25 @@ static std::vector<std::string> framebufferDisplay() {
 }
 
 std::string getDisplay() {
-    auto drm = drmDisplays();
+    
+    if(isWayland()) {
+        auto wl = waylandDisplays();
 
-    if(!drm.empty()) {
-        return joinModes(drm);
+        if(!wl.empty()) {
+            return joinModes(wl);
+        }
     }
 
     auto x11 = xrandrDisplays();
 
     if(!x11.empty()) {
         return joinModes(x11);
+    }
+
+    auto drm = drmDisplays();
+
+    if(!drm.empty()) {
+        return joinModes(drm);
     }
 
     auto fb = framebufferDisplay();

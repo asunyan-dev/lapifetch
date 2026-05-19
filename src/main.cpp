@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
             for(auto info : infos) {
                 std::cout << "- " << info.first << "\n";
             }
-            std::cout << "[separator] lets you add a separator between two infos. It will show a line of ' - ' characters.\n ";
+            std::cout << "[separator] lets you add a separator between two infos. It will show a line of ' - ' characters.\n";
             return 0;
         }
         else if(arg == "--gen-config" || arg == "-gc") {
