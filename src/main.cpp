@@ -338,7 +338,8 @@ int main(int argc, char* argv[]) {
         if(order[i] == "[separator]") {
             if(compactMode) {
                 continue;
-            } else {
+            }
+            else {
                 fullLabels.push_back(makeSeparator());
                 continue;
             }

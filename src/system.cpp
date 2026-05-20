@@ -831,14 +831,14 @@ static std::vector<std::string> hyprlandDisplays() {
 
     size_t pos = 0;
 
-    while((pos = output.find("\"width\":", pos)) != std::string::npos) {
+    while((pos = output.find("\"width\": ", pos)) != std::string::npos) {
         pos += 8;
 
         size_t end = output.find(',', pos);
 
         std::string width = output.substr(pos, end - pos);
 
-        size_t hpos = output.find("\"height\":", end);
+        size_t hpos = output.find("\"height\": ", end);
 
         if(hpos == std::string::npos) {
             break;

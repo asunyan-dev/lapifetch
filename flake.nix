@@ -38,6 +38,11 @@
                         gcc
                         clang-tools
                     ];
+
+                    buildInputs = [
+                        pkgs.xorg.libX11
+                        pkgs.xorg.libXrandr
+                    ]
                 };
             }
         );
