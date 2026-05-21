@@ -16,7 +16,7 @@
             {
                 packages.default = pkgs.stdenv.mkDerivation {
                     pname = "lapifetch";
-                    version = "1.2.1";
+                    version = "1.2.2";
 
                     src = ./.;
 
