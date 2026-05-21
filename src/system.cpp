@@ -21,6 +21,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include "../include/nlohmann/json.hpp"
 
 #include <fstream>
 #include <sstream>
@@ -34,6 +35,8 @@
 #include <filesystem>
 #include <optional>
 #include <cstring>
+
+using json = nlohmann::json;
 
 std::string getUsername() {
     const char* user = getenv("USER");
@@ -953,37 +956,32 @@ static std::vector<std::string> kdeDisplays() {
         return modes;
     }
 
-    size_t pos = 0;
+    try {
+        json j = json::parse(output);
 
-    while((pos = output.find("\"currentModeId\"", pos)) != std::string::npos) {
-        size_t wpos = output.find("\"size\":", pos);
-
-        if(wpos == std::string::npos) {
-            break;
+        if(!j.contains("outputs")) {
+            return modes;
         }
 
-        size_t widthPos = output.find("\"width\":", wpos);
+        for(const auto& screen : j["outputs"]) {
+            if(!screen.value("connected", false) || !screen.value("enabled", false)) {
+                continue;
+            }
 
-        size_t heightPos = output.find("\"height\":", wpos);
+            const auto& size = screen["size"];
 
-        if(widthPos == std::string::npos || heightPos == std::string::npos) {
-            break;
+            int width = size.value("width", 0);
+            int height = size.value("height", 0);
+
+            if(width > 0 && height > 0) {
+                modes.push_back(
+                    std::to_string(width) + "x" + std::to_string(height)
+                );
+            }
         }
-
-        widthPos += 8;
-        heightPos += 9;
-
-        size_t widthEnd = output.find(',', widthPos);
-
-        size_t heightEnd = output.find(',', heightPos);
-
-        std::string width = output.substr(widthPos, widthEnd - widthPos);
-
-        std::string height = output.substr(heightPos, heightEnd - heightPos);
-
-        modes.push_back(width + "x" + height);
-
-        pos = heightEnd;
+    }
+    catch(const std::exception&) {
+        return modes;
     }
 
     return modes;
