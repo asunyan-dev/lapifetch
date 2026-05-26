@@ -8,6 +8,8 @@ lapifetch is a simple bunny-themed Linux fetch utility written in C++.
 
 All you need is a c++ compiler, like gcc.
 
+For fedora, you might need the `libX11-devel` and the `libXrandr-devel` packages if you don't have them installed, otherwise it may fail at build time.
+
 ## Install
 
 ### Arch

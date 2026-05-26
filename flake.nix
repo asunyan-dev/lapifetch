@@ -24,6 +24,18 @@
                         cmake
                     ];
 
+                    buildInputs = with pkgs; [
+                        hwdata
+                        xorg.libX11
+                        xorg.libXrandr
+                    ]
+
+                    postPatch = ''
+                        substituteInPlace src/system.cpp \
+                         --replace "usr/share/hwdata/pci.ids" \
+                                   "${pkgs.hwdata}/share/hwdata/pci.ids"
+                    '';
+
                     meta = with pkgs.lib; {
                         description = "Bunny-themed Linux fetch utility";
                         homepage = "https://github.com/asunyan-dev/lapifetch";
@@ -37,6 +49,7 @@
                         cmake
                         gcc
                         clang-tools
+                        hwdata
                     ];
 
                     buildInputs = [

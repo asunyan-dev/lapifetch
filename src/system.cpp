@@ -216,26 +216,6 @@ std::string getRootStorage() {
     return formatBytes(used) + " / " + formatBytes(total) + " (" + std::to_string(percent) + "%)";
 }
 
-std::string exec(const char* cmd) {
-    std::array<char, 128> buffer;
-
-    std::string result;
-
-    FILE* pipe = popen(cmd, "r");
-
-    if(!pipe) {
-        return "Unknown";
-    }
-
-    while(fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-        result += buffer.data();
-    }
-
-    pclose(pipe);
-
-    return result;
-}
-
 std::string readFile(const std::filesystem::path& path) {
     std::ifstream file(path);
 
@@ -450,7 +430,7 @@ std::string getUptime() {
     int hours = uptimeSeconds / 3600;
     int minutes = (static_cast<int>(uptimeSeconds) % 3600) / 60;
 
-    return std::to_string(hours) + "h " + std::to_string(minutes) + "m";
+    return std::to_string(hours) + "h, " + std::to_string(minutes) + "m";
 }
 
 std::string getShell() {
@@ -694,6 +674,36 @@ size_t countLines(const std::string& text) {
     );
 }
 
+int getRpmPackageCount() {
+    const std::filesystem::path dir("/var/lib/rpm");
+
+    if(!std::filesystem::exists(dir) || !std::filesystem::is_directory(dir)) {
+        return 0;
+    }
+
+    int count = 0;
+
+    for(const auto& entry : std::filesystem::directory_iterator(dir)) {
+        if(entry.is_regular_file()) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+int getFlatpakPackageCount() {
+    int count = 0;
+
+    count += countDirectories("/var/lib/flatpak/app");
+
+    if(const char* home = std::getenv("HOME")) {
+        count += countDirectories(std::filesystem::path(home) / ".local/share/flatpak/app");
+    }
+
+    return count;
+}
+
 std::string getPackages() {
     std::vector<std::string> packages;
 
@@ -713,25 +723,6 @@ std::string getPackages() {
     if(dpkgCount > 0) {
         packages.push_back(
             std::to_string(dpkgCount) + " (dpkg)"
-        );
-    }
-
-
-    if(commandExists("nix")) {
-        std::string output = exec("nix profile list 2>/dev/null | wc -l");
-
-        output.erase(
-            std::remove(output.begin(), output.end(), '\n'),
-            output.end()
-        );
-
-        int count = std::stoi(output);
-        if(count > 0) {
-            count--;
-        }
-
-        packages.push_back(
-            std::to_string(count) + " (nix)"
         );
     }
 
@@ -756,30 +747,23 @@ std::string getPackages() {
     }
 
     if(commandExists("rpm")) {
-        std::string output = exec("rpm -qa | wc -l");
+        int count = getRpmPackageCount();
 
-        output.erase(
-            std::remove(output.begin(), output.end(), '\n'),
-            output.end()
-        );
-
-        packages.push_back(output + " (rpm)");
+        if(count > 0) {
+            packages.push_back(std::to_string(count) + " (rpm)");
+        }
     }
 
     if(commandExists("flatpak")) {
-        std::string output = exec("flatpak list --columns=application");
-
-        size_t count = countLines(output);
+        int count = getFlatpakPackageCount();
 
         if(count > 0) {
-            packages.push_back(
-                std::to_string(count) + " (flatpak)"
-            );
+            packages.push_back(std::to_string(count) + " (flatpak)");
         }
     }
 
     if(packages.empty()) {
-        return "Unknown";
+        return "";
     }
 
     std::string result;
