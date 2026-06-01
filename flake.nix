@@ -16,24 +16,27 @@
             {
                 packages.default = pkgs.stdenv.mkDerivation {
                     pname = "lapifetch";
-                    version = "1.3.0";
+                    version = "1.4.0";
 
                     src = ./.;
 
                     nativeBuildInputs = with pkgs; [
                         cmake
+                        pkg-config
                     ];
 
                     buildInputs = with pkgs; [
                         hwdata
-                        xorg.libX11
-                        xorg.libXrandr
-                    ]
+                        libX11
+                        libXrandr
+                    ];
 
                     postPatch = ''
                         substituteInPlace src/system.cpp \
-                         --replace "usr/share/hwdata/pci.ids" \
-                                   "${pkgs.hwdata}/share/hwdata/pci.ids"
+                         --replace-fail "usr/share/hwdata/pci.ids" \
+                                        "${pkgs.hwdata}/share/hwdata/pci.ids"
+                        echo "" >> CMakeLists.txt
+                        echo "target_link_libraries(lapifetch X11 Xrandr)" >> CMakeLists.txt
                     '';
 
                     meta = with pkgs.lib; {
@@ -42,20 +45,6 @@
                         license = licenses.mit;
                         platforms = platforms.linux;
                     };
-                };
-
-                devShells.default = pkgs.mkShell {
-                    packages = with pkgs; [
-                        cmake
-                        gcc
-                        clang-tools
-                        hwdata
-                    ];
-
-                    buildInputs = [
-                        pkgs.xorg.libX11
-                        pkgs.xorg.libXrandr
-                    ]
                 };
             }
         );

@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         else if(arg == "--version" || arg == "-v") {
-            std::cout << "lapifetch v1.3.0" << std::endl;
+            std::cout << "lapifetch v1.4.0" << std::endl;
             return 0;
         }
         else if(arg == "--no-gpu" || arg == "-ng") {
@@ -113,7 +113,9 @@ int main(int argc, char* argv[]) {
             for(auto info : infos) {
                 std::cout << "- " << info.first << "\n";
             }
-            std::cout << "[separator] lets you add a separator between two infos. It will show a line of ' - ' characters.\n";
+            std::cout << "[separator] lets you add a separator between two infos. It will show a line of ' - ' characters.\n\n";
+            std::cout << "If you add in any line, that is not one of the valid inputs above, it will be counted as a category name.\n\n";
+            std::cout << "Run lapifetch --gen-config to generate default config files. Run lapifetch --delete-config to delete the config folder.\n";
             return 0;
         }
         else if(arg == "--gen-config" || arg == "-gc") {
@@ -151,20 +153,31 @@ int main(int argc, char* argv[]) {
 
                 if(order_file.is_open()) {
                     order_file <<
+                        "Distribution\n"
+                        "[separator]\n"
                         "os\n"
                         "kernel\n"
                         "uptime\n"
-                        "packages\n"
+                        "ip\n"
+                        "[separator]\n"
+                        "Hardware\n"
+                        "[separator]\n"
                         "cpu\n"
                         "gpu\n"
                         "display\n"
+                        "[separator]\n"
+                        "Software\n"
+                        "[separator]\n"
+                        "packages\n"
                         "de\n"
                         "terminal\n"
                         "shell\n"
+                        "[separator]\n"
+                        "RAM/Storage\n"
+                        "[separator]\n"
                         "ram\n"
                         "swap\n"
-                        "root\n"
-                        "ip\n";
+                        "root\n";
                 }
 
                 order_file.close();
@@ -225,10 +238,6 @@ int main(int argc, char* argv[]) {
         std::ifstream file(orderPath);
         std::string line;
         while(std::getline(file, line)) {
-            if(!infos.count(line)) {
-                std::cout << "Error: " << line << " is not a valid option.\nFix it in ~/.config/lapifetch/order";
-                return 0;
-            }
             order.push_back(line);
         }
         file.close();
@@ -236,20 +245,30 @@ int main(int argc, char* argv[]) {
 
     if(!customOrder) {
         order = {
+            "Distribution",
+            "[separator]",
             "os",
             "kernel",
             "uptime",
-            "packages",
+            "ip",
+            "[separator]",
+            "Hardware",
             "cpu",
             "gpu",
             "display",
+            "[separator]",
+            "Software",
+            "[separator]",
+            "packages",
             "de",
             "terminal",
             "shell",
+            "[separator]",
+            "RAM/Storage",
+            "[separator]",
             "ram",
             "swap",
-            "root",
-            "ip"
+            "root"
         };
     }
 
@@ -291,6 +310,16 @@ int main(int argc, char* argv[]) {
                 }
             }
 
+            if(!infos.count(order[i])) {
+                if(compactMode) {
+                    continue;
+                }
+                else {
+                    infoStrings.push_back("");
+                    continue;
+                }
+            }
+
             infoStrings.push_back(infos[order[i]]());
         }
     }
@@ -301,21 +330,21 @@ int main(int argc, char* argv[]) {
     }
 
     std::unordered_map<std::string, std::string> labels = {
-        { "os", "OS:        " },
-        { "kernel", "Kernel:    " },
-        { "uptime", "Uptime:    " },
-        { "packages", "Packages:  " },
-        { "cpu", "CPU:       " },
+        { "os", "OS: " },
+        { "kernel", "Kernel: " },
+        { "uptime", "Uptime: " },
+        { "packages", "Packages: " },
+        { "cpu", "CPU: " },
         { "gpu", "gpu" },
-        { "display", "Display:   " },
-        { "de", "DE/WM:     "},
-        { "terminal", "Terminal:  " },
-        { "shell", "Shell:     " },
-        { "ram", "RAM:       " },
-        { "swap", "Swap:      " },
-        { "root", "Root:      " },
+        { "display", "Display: " },
+        { "de", "DE/WM: "},
+        { "terminal", "Terminal: " },
+        { "shell", "Shell: " },
+        { "ram", "RAM: " },
+        { "swap", "Swap: " },
+        { "root", "Root: " },
         { "[separator]", makeSeparator() },
-        { "ip", "IP:        " }
+        { "ip", "IP: " }
     };
 
     std::vector<std::string> fullLabels;
@@ -328,9 +357,9 @@ int main(int argc, char* argv[]) {
         if(order[i] == "gpu") {
             for(size_t j = 0; j < cachedGPUs.size(); j++) {
                 if(showColor) {
-                    fullLabels.push_back(color + "GPU:       " + reset);
+                    fullLabels.push_back(color + "GPU: " + reset);
                 } else {
-                    fullLabels.push_back("GPU:       ");
+                    fullLabels.push_back("GPU: ");
                 }
             }
             continue;
@@ -343,6 +372,11 @@ int main(int argc, char* argv[]) {
                 fullLabels.push_back(makeSeparator());
                 continue;
             }
+        }
+
+        if(!labels.count(order[i])) {
+            fullLabels.push_back(order[i]);
+            continue;
         }
 
         if(showColor) {
